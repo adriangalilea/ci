@@ -1,7 +1,8 @@
 # Point a formula in adriangalilea/homebrew-tap at a new version. The recipe in
 # the tap is the source of truth; a bump touches only its top-level lines, the
 # rule swift-utils' `ship --cask` applies to casks: the old version becomes the
-# new one in `version` and `url`, and `sha256` becomes the new source's.
+# new one in `url` (and in `version`, where a recipe keeps one), and `sha256`
+# becomes the new source's.
 #
 # The checksum is of GitHub's source tarball for the tag, and the bumped url
 # must serve those same bytes, so a url that points anywhere else (a download
@@ -48,23 +49,28 @@ jobs:
           [[ "$VERSION" =~ ^v?[0-9]+\.[0-9]+\.[0-9]+$ ]] || { echo "::error::version '$VERSION' is not semver"; exit 1; }
 
           ! grep -q '^  bottle do' "$RECIPE" || { echo "::error::$RECIPE has a bottle block; bottles are not part of this pipeline"; exit 1; }
-          for key in version url sha256; do
+          for key in url sha256; do
             [ "$(grep -c "^  $key \"" "$RECIPE")" = 1 ] || { echo "::error::$RECIPE needs exactly one top-level $key line"; exit 1; }
           done
 
+          # The url carries the version (brew audit calls a `version` line that
+          # repeats it redundant), so the old version is read from there.
           NEW=${VERSION#v}
-          OLD=$(sed -n -E 's/^  version "(.*)"$/\1/p' "$RECIPE")
-          grep -q "^  url \".*$OLD" "$RECIPE" || { echo "::error::the url in $RECIPE does not carry its version $OLD"; exit 1; }
+          OLD=$(sed -n -E 's/^  url "(.*)"$/\1/p' "$RECIPE" | grep -oE '[0-9]+\.[0-9]+\.[0-9]+' | sort -u)
+          [ "$(printf '%s\n' "$OLD" | grep -c .)" = 1 ] || { echo "::error::the url in $RECIPE must carry exactly one version, found: $OLD"; exit 1; }
 
           SOURCE="https://github.com/$GITHUB_REPOSITORY/archive/refs/tags/$VERSION.tar.gz"
-          SHA=$(curl -fsSL "$SOURCE" | sha256sum | cut -d' ' -f1)
+          curl -fsSL -o "$RUNNER_TEMP/source.tar.gz" "$SOURCE"
+          SHA=$(sha256sum "$RUNNER_TEMP/source.tar.gz" | cut -d' ' -f1)
 
           sed -i -E "/^  (version|url) \"/s/${OLD//./\\.}/$NEW/g; s/^  sha256 \".*\"$/  sha256 \"$SHA\"/" "$RECIPE"
 
           URL=$(sed -n -E 's/^  url "(.*)"$/\1/p' "$RECIPE")
-          SERVED=$(curl -fsSL "$URL" | sha256sum | cut -d' ' -f1)
+          curl -fsSL -o "$RUNNER_TEMP/served.tar.gz" "$URL"
+          SERVED=$(sha256sum "$RUNNER_TEMP/served.tar.gz" | cut -d' ' -f1)
           [ "$SERVED" = "$SHA" ] || { echo "::error::$URL serves $SERVED, not the tag's source $SHA"; exit 1; }
 
+          if git diff --quiet; then echo "$RECIPE is already at $NEW"; exit 0; fi
           git diff --stat
           git config user.name github-actions
           git config user.email github-actions@github.com

@@ -38,7 +38,7 @@ jobs:
         run: |
           PATTERN='^v?[0-9]+\.[0-9]+\.[0-9]+$'
           [[ "$TAG" =~ $PATTERN ]] || { echo "::error::tag '$TAG' is not semver"; exit 1; }
-          PREV=$(git tag --merged HEAD --sort=-v:refname | { grep -E "$PATTERN" || true; } | { grep -vxF "$TAG" || true; } | head -1)
+          PREV=$(git tag --merged HEAD --sort=-v:refname | { grep -E "$PATTERN" || true; } | { grep -vxF "$TAG" || true; } | sed -n 1p)
           echo "range=${PREV:+$PREV..HEAD}" >> "$GITHUB_OUTPUT"
           echo "notes: ${PREV:-<root>}..HEAD as $TAG"
 
