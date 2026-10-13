@@ -107,7 +107,13 @@ jobs:
           TAG: ${{ inputs.tag }}
           ASSETS: ${{ inputs.artifact != '' && format('{0}/assets', runner.temp) || '' }}
         run: |
-          test -s .git/ci-notes.md || { echo "::error::git-cliff produced no notes"; exit 1; }
+          # This runs after the package is published, so it must not fail on
+          # words: a range with no conventional commit (a bare "bump version")
+          # releases with a body that says so, and a warning on the run.
+          if ! grep -q '[^[:space:]]' .git/ci-notes.md 2>/dev/null; then
+            echo "::warning::no conventional commits since the previous tag; $TAG releases without notes"
+            echo "No conventional commits since the previous release." > .git/ci-notes.md
+          fi
           FILES=()
           if [ -n "$ASSETS" ]; then
             shopt -s nullglob
