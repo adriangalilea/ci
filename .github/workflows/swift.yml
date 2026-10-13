@@ -1,0 +1,34 @@
+# Verify a Swift library at a pushed tag, before release.yml publishes notes.
+#
+# SwiftPM has no manifest version and no registry: a library's version IS its
+# git tag, so the tag is the input and nothing writes a version anywhere. The
+# tag is already public when this runs, so verify cannot prevent a bad tag;
+# it prevents a bad tag becoming a published release.
+name: swift
+
+on:
+  workflow_call:
+    inputs:
+      runner:
+        description: Runner for build + test. Must satisfy the package's platforms.
+        type: string
+        default: macos-26
+      test:
+        description: Run `swift test`. Off for packages with no test target.
+        type: boolean
+        default: true
+
+permissions: {}
+
+jobs:
+  verify:
+    runs-on: ${{ inputs.runner }}
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - run: swift build -c release
+      - if: inputs.test
+        run: swift test

@@ -1,0 +1,118 @@
+# Tag + changelog + GitHub release for one version, in a single API call:
+# `gh release create --target` creates the tag with the release, so a tag
+# without its release cannot exist. Runs after the caller's publish job.
+#
+# Notes cover <previous semver tag>..<this commit>. Only semver tags count
+# (`v1.2.3` or `1.2.3`), so pipeline tags like `ci-v1` never swallow a range.
+name: release
+
+on:
+  workflow_call:
+    inputs:
+      tag:
+        description: The version tag to create, e.g. v1.2.3 (Swift libraries use 1.2.3).
+        type: string
+        required: true
+      artifact:
+        description: Name of an uploaded artifact whose files are attached to the release.
+        type: string
+        default: ''
+
+permissions: {}
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+
+      - name: Range
+        id: range
+        env:
+          TAG: ${{ inputs.tag }}
+        run: |
+          PATTERN='^v?[0-9]+\.[0-9]+\.[0-9]+$'
+          [[ "$TAG" =~ $PATTERN ]] || { echo "::error::tag '$TAG' is not semver"; exit 1; }
+          PREV=$(git tag --merged HEAD --sort=-v:refname | { grep -E "$PATTERN" || true; } | { grep -vxF "$TAG" || true; } | head -1)
+          echo "range=${PREV:+$PREV..HEAD}" >> "$GITHUB_OUTPUT"
+          echo "notes: ${PREV:-<root>}..HEAD as $TAG"
+
+      # The format lives in this file so it is pinned by the same ref as the
+      # workflow. A file in this repo would need a second checkout at a ref the
+      # workflow cannot know about itself.
+      - name: Changelog format
+        run: |
+          cat > .git/ci-cliff.toml <<'EOF'
+          [changelog]
+          body = """
+          {%- macro remote_url() -%}
+            https://github.com/{{ remote.github.owner }}/{{ remote.github.repo }}
+          {%- endmacro -%}
+
+          {% for group, commits in commits | group_by(attribute="group") %}
+          ### {{ group | striptags | trim | upper_first }}
+          {% for commit in commits %}
+          - {% if commit.scope %}*({{ commit.scope }})* {% endif %}{% if commit.breaking %}[**breaking**] {% endif %}{{ commit.message | upper_first }} - ([{{ commit.id | truncate(length=7, end="") }}]({{ self::remote_url() }}/commit/{{ commit.id }}))
+          {%- endfor %}
+          {% endfor %}
+          """
+          trim = true
+
+          [git]
+          conventional_commits = true
+          filter_unconventional = true
+          protect_breaking_commits = true
+          tag_pattern = "^v?[0-9]+\\.[0-9]+\\.[0-9]+$"
+          commit_parsers = [
+            { message = "^feat", group = "✨ Features" },
+            { message = "^fix", group = "🐛 Bug Fixes" },
+            { message = "^doc", group = "📚 Documentation" },
+            { message = "^perf", group = "⚡ Performance" },
+            { message = "^refactor", group = "♻️ Refactor" },
+            { message = "^style", group = "🎨 Styling" },
+            { message = "^test", group = "🧪 Testing" },
+            { message = "^chore\\(release\\): prepare for", skip = true },
+            { message = "^chore\\(deps.*\\)", skip = true },
+            { message = "^chore", group = "🧹 Miscellaneous Tasks" },
+            { message = "^ci|^cd", group = "🏭 CI/CD" },
+            { body = ".*security", group = "🛡️ Security" },
+            { message = "^revert", group = "⏪ Revert" },
+          ]
+          EOF
+
+      - name: Changelog
+        uses: orhun/git-cliff-action@a9a95522b26fe6403f7bb24031f21fb573d0f5ff # v4.9.1
+        with:
+          config: .git/ci-cliff.toml
+          args: --tag ${{ inputs.tag }} ${{ steps.range.outputs.range }}
+        env:
+          OUTPUT: .git/ci-notes.md
+          GITHUB_REPO: ${{ github.repository }}
+
+      - name: Assets
+        if: inputs.artifact != ''
+        uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
+        with:
+          name: ${{ inputs.artifact }}
+          path: ${{ runner.temp }}/assets
+
+      - name: Release
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TAG: ${{ inputs.tag }}
+          ASSETS: ${{ inputs.artifact != '' && format('{0}/assets', runner.temp) || '' }}
+        run: |
+          test -s .git/ci-notes.md || { echo "::error::git-cliff produced no notes"; exit 1; }
+          FILES=()
+          if [ -n "$ASSETS" ]; then
+            shopt -s nullglob
+            FILES=("$ASSETS"/*)
+            [ ${#FILES[@]} -gt 0 ] || { echo "::error::artifact is empty"; exit 1; }
+          fi
+          gh release create "$TAG" --repo "$GITHUB_REPOSITORY" --target "$GITHUB_SHA" \
+            --title "$TAG" --notes-file .git/ci-notes.md "${FILES[@]}"
