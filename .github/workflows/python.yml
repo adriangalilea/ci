@@ -2,8 +2,10 @@
 # dist/ artifact is what the caller's publish job uploads, so the job holding
 # the PyPI OIDC token never runs project code.
 #
-# Gate: `ruff check` + `ruff format --check`, ruff resolved from the project's
-# own dependencies (pyinit puts it in the `dev` group).
+# Gate: `ruff check` + `ruff format --check`, with ruff from the project's
+# `[dependency-groups] dev` (pyinit writes it there). Only that group is
+# installed: ruff reads source, so the project's own dependencies (and
+# whether they have wheels for this Python) never decide whether lint runs.
 #
 # `release` is true on a push to the default branch whose version has no
 # GitHub release yet. The release, not the PyPI upload, is the last step, so
@@ -37,9 +39,8 @@ jobs:
 
       - uses: astral-sh/setup-uv@1c37ad07a6a961277cf70c0d37d6f313000f5884 # v10.3.0
 
-      - run: uv sync --all-extras --all-groups
-      - run: uv run ruff check
-      - run: uv run ruff format --check
+      - run: uv run --only-group dev ruff check
+      - run: uv run --only-group dev ruff format --check
       - run: uv build
 
       - name: Version

@@ -4,10 +4,30 @@ Shared GitHub Actions workflows for adriangalilea's packages: build, verify, and
 
 | Workflow | Does | Outputs |
 |---|---|---|
-| `python.yml` | `uv sync`, `ruff check`, `ruff format --check`, `uv build`, uploads `dist` | `tag`, `release` |
+| `python.yml` | `ruff check` + `ruff format --check` from the `dev` group, `uv build`, uploads `dist` | `tag`, `release` |
 | `node.yml` | `pnpm install`, `pnpm run verify`, `pnpm run build`, `pnpm pack`, uploads `dist` | `tag`, `release` |
 | `swift.yml` | `swift build -c release`, `swift test` | |
 | `release.yml` | git-cliff notes for `<previous semver tag>..HEAD`, then tag + GitHub release in one call, optional assets from an artifact | |
+
+## Callers
+
+Each caller's `release.yml` points here; keep this table in step when one is added or moved.
+
+| Repo | Workflows | Registry |
+|---|---|---|
+| [namecheap-python](https://github.com/adriangalilea/namecheap-python) | python, release | PyPI |
+| [py-utils](https://github.com/adriangalilea/py-utils) | python, release | PyPI `adrian-utils` |
+| [dkb](https://github.com/adriangalilea/dkb) | python, release | PyPI |
+| [share](https://github.com/adriangalilea/share) | python, release | PyPI |
+| [ts-utils](https://github.com/adriangalilea/ts-utils) | node, release | npm `@adriangalilea/utils` |
+| [homebrew-ip](https://github.com/adriangalilea/homebrew-ip) | release (own Go build) | Homebrew formula in the repo |
+| [swift-utils](https://github.com/adriangalilea/swift-utils) | swift, release | git tags (SwiftPM) |
+
+New Python packages get the stub from `pipinit` ([templates](https://github.com/adriangalilea/templates), `python/pyinit`).
+
+## Not here: Mac app releases
+
+A Mac app's release (sign, notarize, staple, dmg, Sparkle or cask) is `ship` in [swift-utils](https://github.com/adriangalilea/swift-utils), run locally where the Developer ID lives, with hand-written `notes/<version>.md` as the release body. These workflows generate notes with git-cliff and never sign anything. If app releases ever move to CI, the workflow belongs here as a thin caller of `ship`, not a second implementation.
 
 ## Why the publish job stays in each repo
 
@@ -27,7 +47,7 @@ Cut a version: `git tag v1.2.3 && git push --tags`.
 
 ### Python (PyPI)
 
-Trusted publisher on PyPI: workflow `release.yml`, no environment. ruff must be a dependency of the project (`[dependency-groups] dev = ["ruff"]`).
+Trusted publisher on PyPI: workflow `release.yml`, no environment. ruff must be in `[dependency-groups] dev`, not in an extra: lint installs only that group.
 
 ```yaml
 name: release
