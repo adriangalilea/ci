@@ -7,11 +7,13 @@ Shared GitHub Actions workflows for adriangalilea's packages: build, verify, and
 | `python.yml` | `ruff check` + `ruff format --check` from the `dev` group, `uv build`, uploads `dist` | `tag`, `release` |
 | `node.yml` | `pnpm install`, `pnpm run verify`, `pnpm run build`, `pnpm pack`, uploads `dist` | `tag`, `release` |
 | `swift.yml` | `swift build -c release`, `swift test` | |
+| `mise.yml` | `mise run check`, then `git diff --exit-code` (the gate for repos whose verbs live in mise.toml) | |
 | `release.yml` | git-cliff notes for `<previous semver tag>..HEAD`, then tag + GitHub release in one call, optional assets from an artifact | |
+| `tap.yml` | bumps `Formula/<name>.rb` in [homebrew-tap](https://github.com/adriangalilea/homebrew-tap) to the tag's source tarball (needs a `TAP_TOKEN` secret: fine-grained, contents write on homebrew-tap only) | |
 
 ## Callers
 
-Each caller's `release.yml` points here; keep this table in step when one is added or moved.
+Each caller's workflow points here; keep this table in step when one is added or moved.
 
 | Repo | Workflows | Registry |
 |---|---|---|
@@ -20,8 +22,13 @@ Each caller's `release.yml` points here; keep this table in step when one is add
 | [dkb](https://github.com/adriangalilea/dkb) | python, release | PyPI |
 | [share](https://github.com/adriangalilea/share) | python, release | PyPI |
 | [ts-utils](https://github.com/adriangalilea/ts-utils) | node, release | npm `@adriangalilea/utils` |
-| [homebrew-ip](https://github.com/adriangalilea/homebrew-ip) | release (own Go build) | Homebrew formula in the repo |
-| [swift-utils](https://github.com/adriangalilea/swift-utils) | swift, release | git tags (SwiftPM) |
+| [ip](https://github.com/adriangalilea/ip) | release, tap | Homebrew `adriangalilea/tap/ip` (source formula) |
+| [swift-utils](https://github.com/adriangalilea/swift-utils) | swift, release, mise | git tags (SwiftPM) |
+| [swift-hw](https://github.com/adriangalilea/swift-hw) | mise | git tags (SwiftPM, cut by hand) |
+| [awake](https://github.com/adriangalilea/awake) | mise | cask, released by `ship` |
+| [chill](https://github.com/adriangalilea/chill) | mise | cask, released by `ship` |
+
+A CLI tool lives in the shared tap, never a `homebrew-<tool>` repo of its own: one `brew tap adriangalilea/tap` reaches all of them. Formulas build from the tagged source; a formula with a bottle (trash) is bumped by hand until bottles join `tap.yml`.
 
 New Python packages get the stub from `pipinit` ([templates](https://github.com/adriangalilea/templates), `python/pyinit`).
 

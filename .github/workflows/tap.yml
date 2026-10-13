@@ -1,0 +1,72 @@
+# Point a formula in adriangalilea/homebrew-tap at a new version. The recipe in
+# the tap is the source of truth; a bump touches only its top-level lines, the
+# rule swift-utils' `ship --cask` applies to casks: the old version becomes the
+# new one in `version` and `url`, and `sha256` becomes the new source's.
+#
+# The checksum is of GitHub's source tarball for the tag, and the bumped url
+# must serve those same bytes, so a url that points anywhere else (a download
+# counter redirecting to the wrong file) fails here, not in `brew install`.
+# A recipe with a `bottle do` block is refused: a version bump would leave it
+# pouring the previous version's bottle.
+#
+# Needs a fine-grained token with contents: write on homebrew-tap only.
+name: tap
+
+on:
+  workflow_call:
+    inputs:
+      formula:
+        description: Formula name, i.e. Formula/<formula>.rb in the tap.
+        type: string
+        required: true
+      version:
+        description: The version being released; also the source tag.
+        type: string
+        required: true
+    secrets:
+      tap-token:
+        required: true
+
+permissions: {}
+
+jobs:
+  bump:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          repository: adriangalilea/homebrew-tap
+          token: ${{ secrets.tap-token }}
+
+      - name: Bump
+        env:
+          FORMULA: ${{ inputs.formula }}
+          VERSION: ${{ inputs.version }}
+        run: |
+          RECIPE="Formula/$FORMULA.rb"
+          test -f "$RECIPE" || { echo "::error::$RECIPE is not in the tap"; exit 1; }
+          [[ "$VERSION" =~ ^v?[0-9]+\.[0-9]+\.[0-9]+$ ]] || { echo "::error::version '$VERSION' is not semver"; exit 1; }
+
+          ! grep -q '^  bottle do' "$RECIPE" || { echo "::error::$RECIPE has a bottle block; bottles are not part of this pipeline"; exit 1; }
+          for key in version url sha256; do
+            [ "$(grep -c "^  $key \"" "$RECIPE")" = 1 ] || { echo "::error::$RECIPE needs exactly one top-level $key line"; exit 1; }
+          done
+
+          NEW=${VERSION#v}
+          OLD=$(sed -n -E 's/^  version "(.*)"$/\1/p' "$RECIPE")
+          grep -q "^  url \".*$OLD" "$RECIPE" || { echo "::error::the url in $RECIPE does not carry its version $OLD"; exit 1; }
+
+          SOURCE="https://github.com/$GITHUB_REPOSITORY/archive/refs/tags/$VERSION.tar.gz"
+          SHA=$(curl -fsSL "$SOURCE" | sha256sum | cut -d' ' -f1)
+
+          sed -i -E "/^  (version|url) \"/s/${OLD//./\\.}/$NEW/g; s/^  sha256 \".*\"$/  sha256 \"$SHA\"/" "$RECIPE"
+
+          URL=$(sed -n -E 's/^  url "(.*)"$/\1/p' "$RECIPE")
+          SERVED=$(curl -fsSL "$URL" | sha256sum | cut -d' ' -f1)
+          [ "$SERVED" = "$SHA" ] || { echo "::error::$URL serves $SERVED, not the tag's source $SHA"; exit 1; }
+
+          git diff --stat
+          git config user.name github-actions
+          git config user.email github-actions@github.com
+          git commit -qam "$FORMULA $NEW"
+          git push -q origin HEAD
