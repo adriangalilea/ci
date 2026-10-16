@@ -22,7 +22,7 @@ Each caller's workflow points here; keep this table in step when one is added or
 | [dkb](https://github.com/adriangalilea/dkb) | python, release | PyPI |
 | [share](https://github.com/adriangalilea/share) | python, release | PyPI |
 | [ts-utils](https://github.com/adriangalilea/ts-utils) | node, release | npm `@adriangalilea/utils` |
-| [e-id](https://github.com/adriangalilea/e-id) | node, release (`cli/`, tags `cli-v…`) | npm `e-id` |
+| [e-id](https://github.com/adriangalilea/e-id) | node, release (`cli/`, tags `cli-v…`) | npm `@e-id/eid` |
 | [ip](https://github.com/adriangalilea/ip) | release, tap | Homebrew `adriangalilea/tap/ip` (source formula) |
 | [swift-utils](https://github.com/adriangalilea/swift-utils) | swift, release, mise | git tags (SwiftPM) |
 | [swift-hw](https://github.com/adriangalilea/swift-hw) | mise | git tags (SwiftPM, cut by hand) |
