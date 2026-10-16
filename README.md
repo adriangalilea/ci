@@ -5,10 +5,10 @@ Shared GitHub Actions workflows for adriangalilea's packages: build, verify, and
 | Workflow | Does | Outputs |
 |---|---|---|
 | `python.yml` | `ruff check` + `ruff format --check` from the `dev` group, `uv build`, uploads `dist` | `tag`, `release` |
-| `node.yml` | `pnpm install`, `pnpm run verify`, `pnpm run build`, `pnpm pack`, uploads `dist` | `tag`, `release` |
+| `node.yml` | `pnpm install`, `pnpm run verify`, `pnpm run build`, `pnpm pack`, uploads `dist`; a package inside a repo with `directory`, `tag-prefix`, `bun` | `tag`, `release` |
 | `swift.yml` | `swift build -c release`, `swift test` | |
 | `mise.yml` | `mise run check`, then `git diff --exit-code` (the gate for repos whose verbs live in mise.toml) | |
-| `release.yml` | git-cliff notes for `<previous semver tag>..HEAD`, then tag + GitHub release in one call, optional assets from an artifact | |
+| `release.yml` | git-cliff notes for `<previous semver tag>..HEAD`, then tag + GitHub release in one call, optional assets from an artifact; `tag-prefix` and `paths` for a package inside a repo | |
 | `tap.yml` | bumps `Formula/<name>.rb` in [homebrew-tap](https://github.com/adriangalilea/homebrew-tap) to the tag's source tarball (needs a `TAP_TOKEN` secret: fine-grained, contents write on homebrew-tap only) | |
 
 ## Callers
@@ -22,6 +22,7 @@ Each caller's workflow points here; keep this table in step when one is added or
 | [dkb](https://github.com/adriangalilea/dkb) | python, release | PyPI |
 | [share](https://github.com/adriangalilea/share) | python, release | PyPI |
 | [ts-utils](https://github.com/adriangalilea/ts-utils) | node, release | npm `@adriangalilea/utils` |
+| [e-id](https://github.com/adriangalilea/e-id) | node, release (`cli/`, tags `cli-v…`) | npm `e-id` |
 | [ip](https://github.com/adriangalilea/ip) | release, tap | Homebrew `adriangalilea/tap/ip` (source formula) |
 | [swift-utils](https://github.com/adriangalilea/swift-utils) | swift, release, mise | git tags (SwiftPM) |
 | [swift-hw](https://github.com/adriangalilea/swift-hw) | mise | git tags (SwiftPM, cut by hand) |
@@ -158,6 +159,44 @@ jobs:
     uses: adriangalilea/ci/.github/workflows/release.yml@<sha> # v1.0.0
     with:
       tag: ${{ needs.build.outputs.tag }}
+    permissions:
+      contents: write
+```
+
+### Node package inside a repo (npm)
+
+A package that is not the repo but lives in it (e-id's `cli/`), built against the repo's dependencies and types: the repo's root installs and runs `verify` as above, then the package is built and packed in `directory`. Its tags carry `tag-prefix` (`cli-v0.1.0`), so they are never the repo's own `v…`, and its notes list only the commits that touched `paths`. `bun: true` sets up Bun for a build script that runs it. The trusted publisher on npm names this file (`cli-release.yml`), not `release.yml`. Run it only when the package changed:
+
+```yaml
+name: cli-release
+
+on:
+  push:
+    branches: [main]
+    paths: ['cli/**']
+  pull_request:
+    branches: [main]
+    paths: ['cli/**']
+
+jobs:
+  build:
+    uses: adriangalilea/ci/.github/workflows/node.yml@<sha> # v1.3.0
+    with:
+      directory: cli
+      tag-prefix: cli-
+      bun: true
+    permissions:
+      contents: read
+
+  publish: # the Node stub's, unchanged
+
+  release:
+    needs: [build, publish]
+    uses: adriangalilea/ci/.github/workflows/release.yml@<sha> # v1.3.0
+    with:
+      tag: ${{ needs.build.outputs.tag }}
+      tag-prefix: cli-
+      paths: cli/**
     permissions:
       contents: write
 ```

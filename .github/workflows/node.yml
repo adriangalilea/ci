@@ -9,13 +9,31 @@
 # `release` is true on a push to the default branch whose version has no
 # GitHub release yet. The release, not the npm upload, is the last step, so
 # any run that died halfway is finished by the next push.
+#
+# A package inside a repo (`directory`, e-id's `cli/`) is built and packed
+# there, after the repo's own install and gate at its root: it builds against
+# the repo's dependencies and types. Its tag carries `tag-prefix` (`cli-v0.1.0`)
+# so it never reads as the repo's own release.
 name: node
 
 on:
   workflow_call:
+    inputs:
+      directory:
+        description: Where the package is, from the repo root.
+        type: string
+        default: .
+      tag-prefix:
+        description: Put before v<version> in the tag, e.g. "cli-". Lowercase letters and hyphens.
+        type: string
+        default: ''
+      bun:
+        description: Set up Bun, for a build script that runs it.
+        type: boolean
+        default: false
     outputs:
       tag:
-        description: v<version> from package.json.
+        description: <tag-prefix>v<version> from the package's package.json.
         value: ${{ jobs.build.outputs.tag }}
       release:
         description: '"true" when this run must publish and release.'
@@ -42,14 +60,30 @@ jobs:
         with:
           node-version: 24
 
+      - uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6 # v2.2.0
+        if: inputs.bun
+
+      - name: Inputs
+        env:
+          DIR: ${{ inputs.directory }}
+          PREFIX: ${{ inputs.tag-prefix }}
+        run: |
+          [[ "$PREFIX" =~ ^[a-z-]*$ ]] || { echo "::error::tag-prefix '$PREFIX' is not lowercase letters and hyphens"; exit 1; }
+          [ -f "$DIR/package.json" ] || { echo "::error::no package.json in '$DIR'"; exit 1; }
+
       - run: pnpm install --frozen-lockfile
       - run: pnpm run verify
       - run: pnpm run build
-      - run: pnpm pack --pack-destination dist
+        working-directory: ${{ inputs.directory }}
+      - run: pnpm pack --pack-destination "$GITHUB_WORKSPACE/dist"
+        working-directory: ${{ inputs.directory }}
 
       - name: Version
         id: version
-        run: echo "tag=v$(node -p 'require("./package.json").version')" >> "$GITHUB_OUTPUT"
+        working-directory: ${{ inputs.directory }}
+        env:
+          PREFIX: ${{ inputs.tag-prefix }}
+        run: echo "tag=${PREFIX}v$(node -p 'require("./package.json").version')" >> "$GITHUB_OUTPUT"
 
       - name: Release needed
         id: release

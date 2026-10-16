@@ -4,6 +4,9 @@
 #
 # Notes cover <previous semver tag>..<this commit>. Only semver tags count
 # (`v1.2.3` or `1.2.3`), so pipeline tags like `ci-v1` never swallow a range.
+# A package inside a repo has its own line of tags (`tag-prefix`: `cli-v0.1.0`
+# follows `cli-v0.0.9`, never the repo's `v…`) and its notes list only the
+# commits that touched it (`paths`).
 name: release
 
 on:
@@ -13,6 +16,14 @@ on:
         description: The version tag to create, e.g. v1.2.3 (Swift libraries use 1.2.3).
         type: string
         required: true
+      tag-prefix:
+        description: The tag's prefix, e.g. "cli-" for cli-v1.2.3. Lowercase letters and hyphens.
+        type: string
+        default: ''
+      paths:
+        description: Globs of the files whose commits the notes list, space-separated, e.g. "cli/**". All, when empty.
+        type: string
+        default: ''
       artifact:
         description: Name of an uploaded artifact whose files are attached to the release.
         type: string
@@ -35,12 +46,25 @@ jobs:
         id: range
         env:
           TAG: ${{ inputs.tag }}
+          PREFIX: ${{ inputs.tag-prefix }}
+          PATHS: ${{ inputs.paths }}
         run: |
-          PATTERN='^v?[0-9]+\.[0-9]+\.[0-9]+$'
-          [[ "$TAG" =~ $PATTERN ]] || { echo "::error::tag '$TAG' is not semver"; exit 1; }
+          [[ "$PREFIX" =~ ^[a-z-]*$ ]] || { echo "::error::tag-prefix '$PREFIX' is not lowercase letters and hyphens"; exit 1; }
+          PATTERN="^${PREFIX}v?[0-9]+\.[0-9]+\.[0-9]+$"
+          [[ "$TAG" =~ $PATTERN ]] || { echo "::error::tag '$TAG' is not ${PREFIX}semver"; exit 1; }
           PREV=$(git tag --merged HEAD --sort=-v:refname | { grep -E "$PATTERN" || true; } | { grep -vxF "$TAG" || true; } | sed -n 1p)
-          echo "range=${PREV:+$PREV..HEAD}" >> "$GITHUB_OUTPUT"
-          echo "notes: ${PREV:-<root>}..HEAD as $TAG"
+          # git-cliff-action pastes `args` into a bash command line, so every
+          # value with a glob or a regex in it goes in single-quoted, and only
+          # once it is checked to hold nothing that could end the quote.
+          ARGS="${PREV:+$PREV..HEAD}"
+          [ -z "$PREFIX" ] || ARGS="$ARGS --tag-pattern '$PATTERN'"
+          read -ra GLOBS <<< "$PATHS"
+          for GLOB in "${GLOBS[@]}"; do
+            [[ "$GLOB" =~ ^[A-Za-z0-9_./*-]+$ ]] || { echo "::error::path '$GLOB' holds more than letters, digits and _ . / * -"; exit 1; }
+            ARGS="$ARGS --include-path '$GLOB'"
+          done
+          echo "range=$ARGS" >> "$GITHUB_OUTPUT"
+          echo "notes: ${PREV:-<root>}..HEAD as $TAG${PATHS:+, only $PATHS}"
 
       # The format lives in this file so it is pinned by the same ref as the
       # workflow. A file in this repo would need a second checkout at a ref the
