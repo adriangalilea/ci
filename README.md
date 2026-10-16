@@ -5,7 +5,7 @@ Shared GitHub Actions workflows for adriangalilea's packages: build, verify, and
 | Workflow | Does | Outputs |
 |---|---|---|
 | `python.yml` | `ruff check` + `ruff format --check` from the `dev` group, `uv build`, uploads `dist` | `tag`, `release` |
-| `node.yml` | `pnpm install`, `pnpm run verify`, `pnpm run build`, `pnpm pack`, uploads `dist`; a package inside a repo with `directory`, `tag-prefix`, `bun` | `tag`, `release` |
+| `node.yml` | `pnpm install`, `pnpm run verify`, `pnpm run build`, `pnpm pack`, uploads `dist`; a package inside a repo with `directory`, `tag-prefix`, `bun`, and its own gate with `verify` | `tag`, `release` |
 | `swift.yml` | `swift build -c release`, `swift test` | |
 | `mise.yml` | `mise run check`, then `git diff --exit-code` (the gate for repos whose verbs live in mise.toml) | |
 | `release.yml` | git-cliff notes for `<previous semver tag>..HEAD`, then tag + GitHub release in one call, optional assets from an artifact; `tag-prefix` and `paths` for a package inside a repo | |
@@ -165,7 +165,7 @@ jobs:
 
 ### Node package inside a repo (npm)
 
-A package that is not the repo but lives in it (e-id's `cli/`), built against the repo's dependencies and types: the repo's root installs and runs `verify` as above, then the package is built and packed in `directory`. Its tags carry `tag-prefix` (`cli-v0.1.0`), so they are never the repo's own `v…`, and its notes list only the commits that touched `paths`. `bun: true` sets up Bun for a build script that runs it. The trusted publisher on npm names this file (`cli-release.yml`), not `release.yml`. Run it only when the package changed:
+A package that is not the repo but lives in it (e-id's `cli/`), built against the repo's dependencies and types: the repo's root installs and runs `verify` as above, then the package is built and packed in `directory`. Its tags carry `tag-prefix` (`cli-v0.1.0`), so they are never the repo's own `v…`, and its notes list only the commits that touched `paths`. `bun: true` sets up Bun for a build script that runs it. `verify: <script>` runs a root script of the package's own instead of the repo's whole `verify`, where that cannot run in CI (e-id's site needs a key to open its sealed paid components; its CLI is checked by `verify:cli`, and the site by its own deploy). The trusted publisher on npm names this file (`cli-release.yml`), not `release.yml`. Run it only when the package changed:
 
 ```yaml
 name: cli-release
@@ -180,11 +180,12 @@ on:
 
 jobs:
   build:
-    uses: adriangalilea/ci/.github/workflows/node.yml@<sha> # v1.3.0
+    uses: adriangalilea/ci/.github/workflows/node.yml@<sha> # v1.4.0
     with:
       directory: cli
       tag-prefix: cli-
       bun: true
+      verify: verify:cli
     permissions:
       contents: read
 

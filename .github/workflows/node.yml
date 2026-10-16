@@ -11,9 +11,12 @@
 # any run that died halfway is finished by the next push.
 #
 # A package inside a repo (`directory`, e-id's `cli/`) is built and packed
-# there, after the repo's own install and gate at its root: it builds against
+# there, after the repo's own install and a gate at its root: it builds against
 # the repo's dependencies and types. Its tag carries `tag-prefix` (`cli-v0.1.0`)
-# so it never reads as the repo's own release.
+# so it never reads as the repo's own release. Its gate can be a script of its
+# own (`verify`, e-id's `verify:cli`) where the repo's whole gate cannot run in a
+# keyless checkout (e-id commits its paid components sealed, opened only with a
+# key its own deploy holds): the package is held to what it is made of.
 name: node
 
 on:
@@ -31,6 +34,10 @@ on:
         description: Set up Bun, for a build script that runs it.
         type: boolean
         default: false
+      verify:
+        description: The root package.json script that is the gate.
+        type: string
+        default: verify
     outputs:
       tag:
         description: <tag-prefix>v<version> from the package's package.json.
@@ -72,7 +79,9 @@ jobs:
           [ -f "$DIR/package.json" ] || { echo "::error::no package.json in '$DIR'"; exit 1; }
 
       - run: pnpm install --frozen-lockfile
-      - run: pnpm run verify
+      - run: pnpm run "$VERIFY"
+        env:
+          VERIFY: ${{ inputs.verify }}
       - run: pnpm run build
         working-directory: ${{ inputs.directory }}
       - run: pnpm pack --pack-destination "$GITHUB_WORKSPACE/dist"
