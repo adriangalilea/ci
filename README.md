@@ -9,6 +9,7 @@ Shared GitHub Actions workflows for adriangalilea's packages: build, verify, and
 | `swift.yml` | `swift build -c release`, `swift test` | |
 | `mise.yml` | `mise run check`, then `git diff --exit-code` (the gate for repos whose verbs live in mise.toml) | |
 | `release.yml` | git-cliff notes for `<previous semver tag>..HEAD`, then tag + GitHub release in one call, optional assets from an artifact; `tag-prefix` and `paths` for a package inside a repo | |
+| `actions/npm-publish` | the steps of a caller's npm publish job: downloads the tarball `node.yml` packed (`artifact`, default `dist`) and publishes it through trusted publishing; a version npm already has counts as published | |
 | `tap.yml` | bumps `Formula/<name>.rb` in [homebrew-tap](https://github.com/adriangalilea/homebrew-tap) to the tag's source tarball (needs a `TAP_TOKEN` secret: fine-grained, contents write on homebrew-tap only) | |
 
 ## Callers
@@ -39,11 +40,25 @@ A Mac app's release (sign, notarize, staple, dmg, Sparkle or cask) is `ship` in 
 
 ## Why the publish job stays in each repo
 
-PyPI and npm trusted publishing check the workflow file of the repo that publishes. A publish step inside a reusable workflow from another repo fails that check. So the stub owns the one job that holds `id-token: write`, and that job runs no project code: it downloads the artifact the read-only build job produced and uploads it.
+PyPI and npm trusted publishing check the workflow file of the repo that publishes. A publish step inside a reusable workflow from another repo fails that check. So the stub owns the one job that holds `id-token: write`, and that job runs no project code: it downloads the artifact the read-only build job produced and uploads it. Its steps can still live here: `actions/npm-publish` is a composite action, which runs inside the caller's job, so the token npm checks still names the caller's file and environment.
 
 ## Idempotency
 
 The GitHub release is the last step, and its absence is what triggers a run: `release` is true on a push to the default branch when `v<version>` has no release. Publishing skips a version the registry already has. A run that died after publishing is finished by the next push.
+
+npm is asked by publishing, never by `npm view` first: for minutes after a version goes up, `npm view` can answer 404 for it while `npm publish` already refuses it, so a pre-check races the registry. `actions/npm-publish` reads that refusal ("cannot publish over the previously published versions") as published. A staged version still waiting for approval is not published, and fails the job.
+
+## A new npm package
+
+npm attaches a trusted publisher only to a package that exists, so a package's first version is published by hand, from a terminal logged in with `npm login` (the 2FA prompt needs a real TTY):
+
+```sh
+pnpm --filter <name> build && cd <package dir> && npm publish --access public
+npm trust github <name> --file release.yml --repo <owner>/<repo> --env npm --allow-publish --allow-stage-publish -y
+npm trust list <name>
+```
+
+`--file` is the workflow file holding the publish job (the stub's name, `cli-release.yml` for e-id's CLI) and `--env` its environment; both must match the stub, or CI's publish fails with a 404 from npm. From then on CI publishes every version: the next push finds the version on npm and only writes the release.
 
 ## Pinning
 
@@ -135,24 +150,7 @@ jobs:
     permissions:
       id-token: write
     steps:
-      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
-        with:
-          node-version: 24
-      - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
-        with:
-          name: dist
-          path: dist
-      - name: Publish
-        run: |
-          # ./ is load-bearing: npm reads `dist/x.tgz` as the GitHub repo dist/x.tgz.
-          TGZ=$(echo ./dist/*.tgz)
-          NAME=$(tar -xOzf "$TGZ" package/package.json | jq -r .name)
-          VERSION=$(tar -xOzf "$TGZ" package/package.json | jq -r .version)
-          if npm view "$NAME@$VERSION" version > /dev/null 2>&1; then
-            echo "$NAME@$VERSION already on npm"
-          else
-            npm publish "$TGZ" --access public
-          fi
+      - uses: adriangalilea/ci/.github/actions/npm-publish@<sha> # v1.6.0
 
   release:
     needs: [build, publish]
@@ -201,6 +199,8 @@ jobs:
     permissions:
       contents: write
 ```
+
+Several packages in one repo (ts-utils) repeat that chain per package in one `release.yml`, each build with its own `artifact`, each publish job passing it to `actions/npm-publish`, and each release needing only its own build and publish. One publish job with a matrix would couple them: `needs` waits on the whole matrix, so one package's failed publish would skip every package's release.
 
 ### Swift library (tag-driven)
 
