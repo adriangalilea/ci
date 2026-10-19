@@ -8,6 +8,7 @@ Shared GitHub Actions workflows for adriangalilea's packages: build, verify, and
 | `node.yml` | `pnpm install`, `pnpm run verify`, `pnpm run build`, `pnpm pack`, uploads `dist`; a package inside a repo with `directory`, `tag-prefix`, `bun`, its own gate with `verify`, and its own artifact name with `artifact` (several packages in one run) | `tag`, `release` |
 | `swift.yml` | `swift build -c release`, `swift test` | |
 | `mise.yml` | `mise run check`, then `git diff --exit-code` (the gate for repos whose verbs live in mise.toml) | |
+| `next-version.yml` | the next version from the conventional commits since the last semver tag, so releasing is never a decision: in 0.x a break bumps the minor and anything else worth a release the patch (a consumer pinning `.upToNextMinor` never takes a break); from 1.0, semver; only docs/style/test/ci/chore/build is no release; a non-conventional commit stops the run; `v-prefix` off for SwiftPM's `1.2.3` | `tag` (empty: nothing to release) |
 | `release.yml` | git-cliff notes for `<previous semver tag>..HEAD`, then tag + GitHub release in one call, optional assets from an artifact; `tag-prefix` and `paths` for a package inside a repo | |
 | `actions/npm-publish` | the steps of a caller's npm publish job: downloads the tarball `node.yml` packed (`artifact`, default `dist`) and publishes it through trusted publishing; a version npm already has counts as published | |
 | `tap.yml` | bumps `Formula/<name>.rb` in [homebrew-tap](https://github.com/adriangalilea/homebrew-tap) to the tag's source tarball (needs a `TAP_TOKEN` secret: fine-grained, contents write on homebrew-tap only) | |
@@ -25,7 +26,7 @@ Each caller's workflow points here; keep this table in step when one is added or
 | [ts-utils](https://github.com/adriangalilea/ts-utils) | node, release (one per package in `packages/`; tags `v…`, `llm-v…`, `bot-v…`, `metrics-v…`) | npm `@adriangalilea/utils`, `@adriangalilea/llm`, `@adriangalilea/bot`, `@adriangalilea/metrics` |
 | [e-id](https://github.com/adriangalilea/e-id) | node, release (`cli/`, tags `cli-v…`) | npm `@e-id/eid` |
 | [ip](https://github.com/adriangalilea/ip) | release, tap | Homebrew `adriangalilea/tap/ip` (source formula) |
-| [swift-utils](https://github.com/adriangalilea/swift-utils) | swift, release, mise | git tags (SwiftPM) |
+| [swift-utils](https://github.com/adriangalilea/swift-utils) | mise, next-version, release (released by CI on every green push to main) | git tags (SwiftPM) |
 | [swift-hw](https://github.com/adriangalilea/swift-hw) | mise | git tags (SwiftPM, cut by hand) |
 | [awake](https://github.com/adriangalilea/awake) | mise | cask, released by `ship` |
 | [chill](https://github.com/adriangalilea/chill) | mise | cask, released by `ship` |

@@ -1,0 +1,93 @@
+# The next version, read from the commits since the last one: releasing is
+# never a decision. A caller runs it after its gate passed on the default
+# branch and hands `tag` to release.yml; an empty `tag` means nothing since the
+# last release is worth one.
+#
+# The bump, from conventional commits (`type(scope)!: …`, `BREAKING CHANGE:`
+# in a body):
+#
+#   while 0.x    a break → minor   (0.25.0 → 0.26.0)
+#                feat, fix, perf, refactor, revert → patch   (0.26.0 → 0.26.1)
+#   from 1.0     a break → major, feat → minor, the rest above → patch
+#   only docs, style, test, ci, chore, build → no release
+#
+# In 0.x the minor is the breaking slot (Cargo's reading of semver), so a
+# consumer pinning `.upToNextMinor(from:)` takes every safe release and never
+# a break. A commit that is not conventional stops the run: the bump cannot be
+# read from it, and guessing would publish the wrong promise.
+name: next-version
+
+on:
+  workflow_call:
+    inputs:
+      v-prefix:
+        description: Tags read `v1.2.3` (true) or `1.2.3` (false, SwiftPM's convention).
+        type: boolean
+        default: true
+    outputs:
+      tag:
+        description: The tag to release, or empty when nothing since the last release is worth one.
+        value: ${{ jobs.next.outputs.tag }}
+
+permissions: {}
+
+jobs:
+  next:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    outputs:
+      tag: ${{ steps.bump.outputs.tag }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+
+      - name: Bump
+        id: bump
+        env:
+          V: ${{ inputs.v-prefix && 'v' || '' }}
+        run: |
+          set -euo pipefail
+          PATTERN="^${V}[0-9]+\.[0-9]+\.[0-9]+$"
+          LAST=$(git tag --merged HEAD --sort=-v:refname | { grep -E "$PATTERN" || true; } | sed -n 1p)
+          [ -n "$LAST" ] || { echo "::error::no ${V}X.Y.Z tag yet: cut the first release by hand"; exit 1; }
+          IFS=. read -r MAJOR MINOR PATCH <<< "${LAST#"$V"}"
+
+          BREAK=0; FEATURE=0; CHANGE=0
+          while IFS= read -r -d $'\x1e' COMMIT; do
+            COMMIT="${COMMIT#$'\n'}"
+            [ -n "$COMMIT" ] || continue
+            SUBJECT="${COMMIT%%$'\x1f'*}"
+            BODY="${COMMIT#*$'\x1f'}"
+            TYPE_RE='^([a-z]+)(\([^)]*\))?(!)?: '
+            [[ "$SUBJECT" =~ $TYPE_RE ]] || { echo "::error::not a conventional commit, the bump cannot be read from it: $SUBJECT"; exit 1; }
+            TYPE="${BASH_REMATCH[1]}"
+            if [ -n "${BASH_REMATCH[3]}" ] || grep -q '^BREAKING[ -]CHANGE:' <<< "$BODY"; then BREAK=1; fi
+            case "$TYPE" in
+              feat) FEATURE=1 ;;
+              fix|perf|refactor|revert) CHANGE=1 ;;
+              docs|style|test|ci|chore|build) ;;
+              *) echo "::error::unknown commit type '$TYPE': $SUBJECT"; exit 1 ;;
+            esac
+          done < <(git log --format='%s%x1f%b%x1e' "$LAST..HEAD")
+
+          if [ "$MAJOR" = 0 ]; then
+            if [ $BREAK = 1 ]; then NEXT="0.$((MINOR + 1)).0"
+            elif [ $FEATURE = 1 ] || [ $CHANGE = 1 ]; then NEXT="0.$MINOR.$((PATCH + 1))"
+            else NEXT=""; fi
+          else
+            if [ $BREAK = 1 ]; then NEXT="$((MAJOR + 1)).0.0"
+            elif [ $FEATURE = 1 ]; then NEXT="$MAJOR.$((MINOR + 1)).0"
+            elif [ $CHANGE = 1 ]; then NEXT="$MAJOR.$MINOR.$((PATCH + 1))"
+            else NEXT=""; fi
+          fi
+
+          if [ -z "$NEXT" ]; then
+            echo "nothing since $LAST is worth a release"
+            echo "tag=" >> "$GITHUB_OUTPUT"
+          else
+            echo "$LAST → $V$NEXT (break=$BREAK feature=$FEATURE change=$CHANGE)"
+            echo "tag=$V$NEXT" >> "$GITHUB_OUTPUT"
+          fi
