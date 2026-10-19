@@ -5,7 +5,7 @@ Shared GitHub Actions workflows for adriangalilea's packages: build, verify, and
 | Workflow | Does | Outputs |
 |---|---|---|
 | `python.yml` | `ruff check` + `ruff format --check` from the `dev` group, `uv build`, uploads `dist` | `tag`, `release` |
-| `node.yml` | `pnpm install`, `pnpm run verify`, `pnpm run build`, `pnpm pack`, uploads `dist`; a package inside a repo with `directory`, `tag-prefix`, `bun`, and its own gate with `verify` | `tag`, `release` |
+| `node.yml` | `pnpm install`, `pnpm run verify`, `pnpm run build`, `pnpm pack`, uploads `dist`; a package inside a repo with `directory`, `tag-prefix`, `bun`, its own gate with `verify`, and its own artifact name with `artifact` (several packages in one run) | `tag`, `release` |
 | `swift.yml` | `swift build -c release`, `swift test` | |
 | `mise.yml` | `mise run check`, then `git diff --exit-code` (the gate for repos whose verbs live in mise.toml) | |
 | `release.yml` | git-cliff notes for `<previous semver tag>..HEAD`, then tag + GitHub release in one call, optional assets from an artifact; `tag-prefix` and `paths` for a package inside a repo | |
@@ -21,7 +21,7 @@ Each caller's workflow points here; keep this table in step when one is added or
 | [py-utils](https://github.com/adriangalilea/py-utils) | python, release | PyPI `adrian-utils` |
 | [dkb](https://github.com/adriangalilea/dkb) | python, release | PyPI |
 | [share](https://github.com/adriangalilea/share) | python, release | PyPI |
-| [ts-utils](https://github.com/adriangalilea/ts-utils) | node, release | npm `@adriangalilea/utils` |
+| [ts-utils](https://github.com/adriangalilea/ts-utils) | node, release (one per package in `packages/`; tags `v…`, `llm-v…`, `bot-v…`, `metrics-v…`) | npm `@adriangalilea/utils`, `@adriangalilea/llm`, `@adriangalilea/bot`, `@adriangalilea/metrics` |
 | [e-id](https://github.com/adriangalilea/e-id) | node, release (`cli/`, tags `cli-v…`) | npm `@e-id/eid` |
 | [ip](https://github.com/adriangalilea/ip) | release, tap | Homebrew `adriangalilea/tap/ip` (source formula) |
 | [swift-utils](https://github.com/adriangalilea/swift-utils) | swift, release, mise | git tags (SwiftPM) |
