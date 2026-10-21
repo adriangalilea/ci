@@ -37,7 +37,7 @@ New Python packages get the stub from `pipinit` ([templates](https://github.com/
 
 ## Not here: Mac app releases
 
-A Mac app's release (sign, notarize, staple, dmg, Sparkle or cask) is built locally from a fresh clone of commits a person approved, the keys handed to that build alone, then published by `ship` in [swift-utils](https://github.com/adriangalilea/swift-utils), with hand-written `notes/<version>.md` as the release body. These workflows generate notes with git-cliff and never sign anything. If app releases ever move to CI, the workflow belongs here as a thin caller of `ship`, not a second implementation.
+A Mac app's release (sign, notarize, staple, dmg, Sparkle or cask) is built locally by `ship release` in [swift-utils](https://github.com/adriangalilea/swift-utils) from exactly the commits a person approved, the keys handed to that build alone (`Sources/ship/RELEASE.md`), then published by `ship publish`, with hand-written `notes/<version>.md` as the release body. These workflows generate notes with git-cliff and never sign anything. If app releases ever move to CI, the workflow belongs here as a thin caller of `ship`, not a second implementation.
 
 ## Why the publish job stays in each repo
 
