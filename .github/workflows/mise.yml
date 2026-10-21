@@ -35,17 +35,23 @@ jobs:
     permissions:
       contents: read
     steps:
+      # A self-hosted runner keeps its build directory where the last run left
+      # it: the checkout cleans nothing ignored, and GitHub's cache is never
+      # used (restoring a build of hundreds of MB over the network took longer
+      # than building). Only GitHub's own machines go through the cache.
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
+          clean: ${{ runner.environment == 'github-hosted' }}
           # The history the file times below are read from.
-          fetch-depth: ${{ inputs.cache != '' && 0 || 1 }}
+          fetch-depth: ${{ inputs.cache != '' && runner.environment == 'github-hosted' && 0 || 1 }}
       # A checkout stamps every file with the time of the checkout, so a build
       # tool comparing times sees every file as new and the cached build is
       # thrown away whole. Each file gets the time of the last commit that
       # touched it instead: unchanged files stay older than their cached
-      # products, and only what the push touched is rebuilt.
-      - if: inputs.cache != ''
+      # products, and only what the push touched is rebuilt. (A kept checkout
+      # rewrites only the files a push changed, so it needs none of this.)
+      - if: inputs.cache != '' && runner.environment == 'github-hosted'
         name: File times from git
         run: |
           git log --format='%ct' --name-only | perl -ne '
@@ -55,7 +61,7 @@ jobs:
             utime $t, $t, $_ if -e $_;
           '
       - uses: jdx/mise-action@08ae2a091c038e1e05ec6f5115dc5c69d5a2a6b8 # v5.1.2
-      - if: inputs.cache != ''
+      - if: inputs.cache != '' && runner.environment == 'github-hosted'
         uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
         with:
           path: ${{ inputs.cache }}
