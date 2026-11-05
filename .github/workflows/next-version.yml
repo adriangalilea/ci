@@ -14,7 +14,8 @@
 # In 0.x the minor is the breaking slot (Cargo's reading of semver), so a
 # consumer pinning `.upToNextMinor(from:)` takes every safe release and never
 # a break. A commit that is not conventional stops the run: the bump cannot be
-# read from it, and guessing would publish the wrong promise.
+# read from it, and guessing would publish the wrong promise. `genesis` (a
+# first commit) and git's `Revert "…"` are read as no bump and a revert.
 name: next-version
 
 on:
@@ -61,6 +62,12 @@ jobs:
             [ -n "$COMMIT" ] || continue
             SUBJECT="${COMMIT%%$'\x1f'*}"
             BODY="${COMMIT#*$'\x1f'}"
+            # Two subjects carry no type and are still read: a repository's
+            # first commit, `genesis` by the studio's convention, worth nothing,
+            # and git's own revert subject, `Revert "…"`, a revert. A history
+            # brought in whole (a subtree) holds both.
+            [ "$SUBJECT" != genesis ] || continue
+            if [[ "$SUBJECT" == 'Revert "'* ]]; then CHANGE=1; continue; fi
             TYPE_RE='^([a-z]+)(\([^)]*\))?(!)?: '
             [[ "$SUBJECT" =~ $TYPE_RE ]] || { echo "::error::not a conventional commit, the bump cannot be read from it: $SUBJECT"; exit 1; }
             TYPE="${BASH_REMATCH[1]}"
