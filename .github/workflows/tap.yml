@@ -10,7 +10,8 @@
 # A recipe with a `bottle do` block is refused: a version bump would leave it
 # pouring the previous version's bottle.
 #
-# Needs a fine-grained token with contents: write on homebrew-tap only.
+# Needs the private half of a deploy key with write access on homebrew-tap
+# alone: it reaches no other repository and never expires.
 name: tap
 
 on:
@@ -25,7 +26,7 @@ on:
         type: string
         required: true
     secrets:
-      tap-token:
+      tap-key:
         required: true
 
 permissions: {}
@@ -37,7 +38,7 @@ jobs:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           repository: adriangalilea/homebrew-tap
-          token: ${{ secrets.tap-token }}
+          ssh-key: ${{ secrets.tap-key }}
 
       - name: Bump
         env:

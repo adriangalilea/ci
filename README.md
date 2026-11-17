@@ -11,7 +11,7 @@ Shared GitHub Actions workflows for adriangalilea's packages: build, verify, and
 | `next-version.yml` | the next version from the conventional commits since the last semver tag, so releasing is never a decision: in 0.x a break bumps the minor and anything else worth a release the patch (a consumer pinning `.upToNextMinor` never takes a break); from 1.0, semver; only docs/style/test/ci/chore/build is no release; a non-conventional commit stops the run (`genesis`, a first commit, and git's `Revert "…"` excepted: no bump and a revert), and a merge is read through the commits it brought in; `v-prefix` off for SwiftPM's `1.2.3` | `tag` (empty: nothing to release) |
 | `release.yml` | git-cliff notes for `<previous semver tag>..HEAD`, then tag + GitHub release in one call, optional assets from an artifact; `tag-prefix` and `paths` for a package inside a repo | |
 | `actions/npm-publish` | the steps of a caller's npm publish job: downloads the tarball `node.yml` packed (`artifact`, default `dist`) and publishes it through trusted publishing; a version npm already has counts as published | |
-| `tap.yml` | bumps `Formula/<name>.rb` in [homebrew-tap](https://github.com/adriangalilea/homebrew-tap) to the tag's source tarball (needs a `TAP_TOKEN` secret: fine-grained, contents write on homebrew-tap only) | |
+| `tap.yml` | bumps `Formula/<name>.rb` in [homebrew-tap](https://github.com/adriangalilea/homebrew-tap) to the tag's source tarball (needs `tap-key`: the private half of a deploy key with write access on homebrew-tap alone, kept as the caller's secret `TAP_DEPLOY_KEY`; no expiry, no reach beyond the tap) | |
 
 ## Callers
 
