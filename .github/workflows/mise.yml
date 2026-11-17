@@ -44,7 +44,7 @@ jobs:
           persist-credentials: false
           clean: ${{ runner.environment == 'github-hosted' }}
           # The history the file times below are read from.
-          fetch-depth: ${{ inputs.cache != '' && runner.environment == 'github-hosted' && 0 || 1 }}
+          fetch-depth: ${{ inputs.cache != '' && runner.environment == 'github-hosted' && '0' || '1' }}
       # A checkout stamps every file with the time of the checkout, so a build
       # tool comparing times sees every file as new and the cached build is
       # thrown away whole. Each file gets the time of the last commit that
