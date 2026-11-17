@@ -1,6 +1,6 @@
 # TODO
 
-- [ ] **The tap's deploy key, unproven** (done 2026-11-17 on Adrian's word, rushed): `tap.yml` checks out and pushes homebrew-tap with a deploy key (write, that repo alone, no expiry; its private half only as `ip`'s secret `TAP_DEPLOY_KEY`), replacing a personal token that broke the secrets policy. Proven at `ip`'s next release tag, when the tap job pushes. Adrian's, no API does them: revoke the old fine-grained token at github.com › Settings › Developer settings › Fine-grained tokens, and delete its 1Password item ("GitHub PAT homebrew-tap release", Private).
+- [ ] **The tap's deploy key, unproven** (done 2026-11-17 on Adrian's word, rushed): `tap.yml` checks out and pushes homebrew-tap with a deploy key (write, that repo alone, no expiry; its private half only as `ip`'s secret `TAP_DEPLOY_KEY`), replacing a personal token that broke the secrets policy. Proven at `ip`'s next release tag, when the tap job pushes; then the old token is revoked and `ip`'s `TAP_TOKEN` secret deleted.
 
 - [ ] **`next-version` with a tag prefix.** `recipes/next-version.sh` accepts only `v` or no prefix, while `node.yml` and `release.yml` take `tag-prefix` (`cli-`, `llm-`, `bot-`, `metrics-`): the first multi-package repo that wants its version chosen from its commits hits the refusal, and `workspace.yml` below needs it too (raised 2026-11-17 by the conversation that wrote these templates).
 
