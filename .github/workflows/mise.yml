@@ -29,6 +29,10 @@ on:
         description: A build directory kept between runs (e.g. .build), restored before the task. None when empty.
         type: string
         default: ''
+      artifact:
+        description: Filename in .build/release-assets to pass to release.yml under the same artifact name.
+        type: string
+        default: ''
 
 permissions: {}
 
@@ -87,3 +91,9 @@ jobs:
             mise run "${ARGS[@]}"
           fi
       - run: git diff --exit-code
+      - if: inputs.artifact != ''
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: ${{ inputs.artifact }}
+          path: .build/release-assets/${{ inputs.artifact }}
+          if-no-files-found: error
