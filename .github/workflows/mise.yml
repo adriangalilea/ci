@@ -21,6 +21,10 @@ on:
         description: The mise task to run, with its arguments, e.g. "platforms iOS".
         type: string
         default: check
+      run-id:
+        description: Build run to join on a household worker. Defaults to this GitHub run and attempt.
+        type: string
+        default: ''
       cache:
         description: A build directory kept between runs (e.g. .build), restored before the task. None when empty.
         type: string
@@ -73,7 +77,16 @@ jobs:
           restore-keys: mise-${{ runner.os }}-${{ inputs.task }}-
       - env:
           TASK: ${{ inputs.task }}
+          CALLER_BUILD_RUN: ${{ inputs.run-id }}
+          HOSTING: ${{ runner.environment }}
         run: |
           read -ra ARGS <<< "$TASK"
-          mise run "${ARGS[@]}"
+          if [[ $HOSTING == self-hosted ]]; then
+            export PATH="$HOME/.local/bin:$PATH"
+            export BUILD_RUN="${CALLER_BUILD_RUN:-${BUILD_RUN:-github-$GITHUB_REPOSITORY_ID-$GITHUB_RUN_ID-$GITHUB_RUN_ATTEMPT}}"
+            echo "Build run $BUILD_RUN on $RUNNER_NAME"
+            build task -- "${ARGS[@]}"
+          else
+            mise run "${ARGS[@]}"
+          fi
       - run: git diff --exit-code
