@@ -65,7 +65,7 @@ npm trust list <name>
 
 Callers pin to a full commit SHA with the version in a comment, and Dependabot (`github-actions` ecosystem) opens a PR when this repo tags a new version. Every action used here is pinned the same way.
 
-Cut a version: `git tag v1.2.3 && git push --tags`.
+A green push to this repository’s main runs its own version and release workflows. The previous semver tag and the commits since it determine the new version.
 
 ## Stubs
 

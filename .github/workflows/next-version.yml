@@ -16,6 +16,11 @@
 # a break. A commit that is not conventional stops the run: the bump cannot be
 # read from it, and guessing would publish the wrong promise. `genesis` (a
 # first commit) and git's `Revert "…"` are read as no bump and a revert.
+# Correct an already published subject without changing its commit:
+# git notes --ref=conventional add -m 'type(scope): corrected title' COMMIT
+# git push origin refs/notes/conventional
+# This ref belongs to the caller. Each note replaces one subject for version
+# calculation only. The original body still declares breaking changes.
 name: next-version
 
 on:
@@ -45,6 +50,18 @@ jobs:
           fetch-depth: 0
           path: source
           persist-credentials: false
+
+      - name: Fetch the caller's published title corrections
+        working-directory: source
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          ref=refs/notes/conventional
+          git_auth() { git -c credential.helper= -c 'credential.helper=!gh auth git-credential' "$@"; }
+          advertised=$(git_auth ls-remote --refs origin "$ref")
+          if [[ -n "$advertised" ]]; then
+            git_auth fetch --no-tags origin "$ref:$ref"
+          fi
 
       - name: Identify the pinned recipe
         id: recipe

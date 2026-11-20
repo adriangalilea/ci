@@ -20,3 +20,19 @@ jobs:
           go-version: stable
           cache: false
       - run: go run github.com/rhysd/actionlint/cmd/actionlint@v1.7.12
+
+  version:
+    needs: actionlint
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    uses: ./.github/workflows/next-version.yml
+    permissions:
+      contents: read
+
+  release:
+    needs: version
+    if: needs.version.outputs.tag != ''
+    uses: ./.github/workflows/release.yml
+    with:
+      tag: ${{ needs.version.outputs.tag }}
+    permissions:
+      contents: write

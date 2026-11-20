@@ -10,11 +10,15 @@ LAST=$(git tag --merged HEAD --sort=-v:refname | { grep -E "$PATTERN" || true; }
 IFS=. read -r MAJOR MINOR PATCH <<< "${LAST#"$V"}"
 
 BREAK=0; FEATURE=0; CHANGE=0
-while IFS= read -r -d $'\x1e' COMMIT; do
-  COMMIT="${COMMIT#$'\n'}"
-  [ -n "$COMMIT" ] || continue
-  SUBJECT="${COMMIT%%$'\x1f'*}"
-  BODY="${COMMIT#*$'\x1f'}"
+COMMITS=$(git rev-list --no-merges "$LAST..HEAD")
+NOTES=$(git notes --ref=conventional list)
+for commit in $COMMITS; do
+  SUBJECT=$(git show -s --format=%s "$commit")
+  BODY=$(git show -s --format=%b "$commit")
+  if [[ "$NOTES"$'\n' == *" $commit"$'\n'* ]]; then
+    SUBJECT=$(git notes --ref=conventional show "$commit")
+    [[ -n "$SUBJECT" && "$SUBJECT" != *$'\n'* && "$SUBJECT" != *$'\r'* ]] || { echo "expected one correction title on $commit" >&2; exit 1; }
+  fi
   # Two subjects carry no type and are still read: a repository's
   # first commit, `genesis` by the studio's convention, worth nothing,
   # and git's own revert subject, `Revert "…"`, a revert. A history
@@ -33,7 +37,7 @@ while IFS= read -r -d $'\x1e' COMMIT; do
   esac
 # A merge carries no change of its own: its bump is read from the
 # commits it brought in, each of which is conventional.
-done < <(git log --no-merges --format='%s%x1f%b%x1e' "$LAST..HEAD")
+done
 
 if [ "$MAJOR" = 0 ]; then
   if [ $BREAK = 1 ]; then NEXT="0.$((MINOR + 1)).0"
