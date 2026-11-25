@@ -26,7 +26,7 @@ Each caller's workflow points here; keep this table in step when one is added or
 | [ts-utils](https://github.com/adriangalilea/ts-utils) | node, release (one per package in `packages/`; tags `v…`, `llm-v…`, `bot-v…`, `metrics-v…`) | npm `@adriangalilea/utils`, `@adriangalilea/llm`, `@adriangalilea/bot`, `@adriangalilea/metrics` |
 | [e-id](https://github.com/adriangalilea/e-id) | node, release (`cli/`, tags `cli-v…`) | npm `@e-id/eid` |
 | [ip](https://github.com/adriangalilea/ip) | release, tap | Homebrew `adriangalilea/tap/ip` (source formula) |
-| [swift-utils](https://github.com/adriangalilea/swift-utils) | mise, next-version, release (released by CI on every green push to main) | git tags (SwiftPM) |
+| [swift-utils](https://github.com/adriangalilea/swift-utils) | none: its own pipeline calls `recipes/next-version.sh`, pinned by commit, and runs no workflow here | git tags (SwiftPM) |
 | [swift-hw](https://github.com/adriangalilea/swift-hw) | mise | git tags (SwiftPM, cut by hand) |
 | [awake](https://github.com/adriangalilea/awake) | mise | cask, released by `ship` |
 | [chill](https://github.com/adriangalilea/chill) | mise | cask, released by `ship` |
