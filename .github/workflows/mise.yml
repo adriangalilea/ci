@@ -21,10 +21,6 @@ on:
         description: The mise task to run, with its arguments, e.g. "platforms iOS".
         type: string
         default: check
-      run-id:
-        description: Build run to join on a household worker. Defaults to this GitHub run and attempt.
-        type: string
-        default: ''
       cache:
         description: A build directory kept between runs (e.g. .build), restored before the task. None when empty.
         type: string
@@ -43,23 +39,17 @@ jobs:
     permissions:
       contents: read
     steps:
-      # A self-hosted runner keeps its build directory where the last run left
-      # it: the checkout cleans nothing ignored, and GitHub's cache is never
-      # used (restoring a build of hundreds of MB over the network took longer
-      # than building). Only GitHub's own machines go through the cache.
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
-          clean: ${{ runner.environment == 'github-hosted' }}
           # The history the file times below are read from.
-          fetch-depth: ${{ inputs.cache != '' && runner.environment == 'github-hosted' && '0' || '1' }}
+          fetch-depth: ${{ inputs.cache != '' && '0' || '1' }}
       # A checkout stamps every file with the time of the checkout, so a build
       # tool comparing times sees every file as new and the cached build is
       # thrown away whole. Each file gets the time of the last commit that
       # touched it instead: unchanged files stay older than their cached
-      # products, and only what the push touched is rebuilt. (A kept checkout
-      # rewrites only the files a push changed, so it needs none of this.)
-      - if: inputs.cache != '' && runner.environment == 'github-hosted'
+      # products, and only what the push touched is rebuilt.
+      - if: inputs.cache != ''
         name: File times from git
         run: |
           git log --format='%ct' --name-only | perl -ne '
@@ -68,9 +58,8 @@ jobs:
             next if $_ eq "" or $seen{$_}++;
             utime $t, $t, $_ if -e $_;
           '
-      - if: runner.environment == 'github-hosted'
-        uses: jdx/mise-action@08ae2a091c038e1e05ec6f5115dc5c69d5a2a6b8 # v5.1.2
-      - if: inputs.cache != '' && runner.environment == 'github-hosted'
+      - uses: jdx/mise-action@08ae2a091c038e1e05ec6f5115dc5c69d5a2a6b8 # v5.1.2
+      - if: inputs.cache != ''
         uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
         with:
           path: ${{ inputs.cache }}
@@ -78,18 +67,9 @@ jobs:
           restore-keys: mise-${{ runner.os }}-${{ inputs.task }}-
       - env:
           TASK: ${{ inputs.task }}
-          CALLER_BUILD_RUN: ${{ inputs.run-id }}
-          HOSTING: ${{ runner.environment }}
         run: |
           read -ra ARGS <<< "$TASK"
-          if [[ $HOSTING == self-hosted ]]; then
-            export PATH="$HOME/.local/bin:$PATH"
-            export BUILD_RUN="${CALLER_BUILD_RUN:-${BUILD_RUN:-github-$GITHUB_REPOSITORY_ID-$GITHUB_RUN_ID-$GITHUB_RUN_ATTEMPT}}"
-            echo "Build run $BUILD_RUN on $RUNNER_NAME"
-            hq exec -- "${ARGS[@]}"
-          else
-            mise run "${ARGS[@]}"
-          fi
+          mise run "${ARGS[@]}"
       - run: git diff --exit-code
       - if: inputs.artifact != ''
         uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
